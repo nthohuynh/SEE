@@ -3,11 +3,14 @@ Ensemble regression for Software Effort Estimation (SEE).
 
 Reproduces: Carvalho et al., "Ensemble Regression Models for Software Development
 Effort Estimation: A Comparative Study", IJSEA Vol.11, No.3, May 2020.
+
+Includes PSO-based hyperparameter optimization using mealpy library.
 """
 
 from ensemble_see.config import ExperimentConfig, DatasetConfig
 from ensemble_see.experiment import run_experiment
 from ensemble_see.metrics import mar, relative_gain
+from ensemble_see.pso_optimizer import PSOConfig, PSOHyperparameterOptimizer
 
 __all__ = [
     "ExperimentConfig",
@@ -15,4 +18,6 @@ __all__ = [
     "run_experiment",
     "mar",
     "relative_gain",
+    "PSOConfig",
+    "PSOHyperparameterOptimizer",
 ]

@@ -1,11 +1,10 @@
 """
 Monte Carlo experiment loop for SEE ensemble study.
 
-Algorithm (per plan):
-1. Shuffle dataset, split 70% train / 30% test.
-2. Train all models (baseline + ensemble) on train set.
-3. Predict on test set, compute MAR per model.
-4. Repeat for n_iterations; aggregate mean and std of MAR.
+Follows plan/ensemble_regression_see.md (Carvalho et al., IJSEA 2020):
+- Shuffle → Split 70% train / 30% test → Train on train only → Predict on test → MAR.
+- Normalization: Max-Min [0,1] fit on training data only, then transform train and test
+  (no leakage). StackingRegressor uses cv=5 for meta-learner (out-of-fold base predictions).
 """
 
 from __future__ import annotations
@@ -17,13 +16,18 @@ import numpy as np
 from sklearn.base import clone
 
 from ensemble_see.config import DatasetConfig, ExperimentConfig
-from ensemble_see.data import prepare_see_frame, train_test_split
+from ensemble_see.data import (
+    prepare_see_frame,
+    scale_fit_train_transform_test,
+    train_test_split,
+)
 from ensemble_see.metrics import (
     compute_all_regression_metrics,
     mar_with_residuals,
     wilcoxon_signed_rank,
 )
 from ensemble_see.models import get_baseline_models, get_ensemble_models
+from ensemble_see.pso_optimizer import PSOConfig, PSOHyperparameterOptimizer
 
 
 @dataclass
@@ -65,10 +69,15 @@ def _run_single_iteration(
     config: ExperimentConfig,
     iter_seed: int,
 ) -> IterationResult:
+    # 1. Shuffle and split (plan: 70% train, 30% test)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
         train_ratio=config.train_ratio,
         random_state=iter_seed,
+    )
+    # 2. Fit scalers on train only; transform train and test (no leakage)
+    X_train_s, y_train_s, X_test_s, y_test_s = scale_fit_train_transform_test(
+        X_train, y_train, X_test, y_test
     )
     mar_by_model: dict[str, float] = {}
     metrics_by_model: dict[str, dict[str, float]] = {}
@@ -80,12 +89,12 @@ def _run_single_iteration(
             model.set_params(random_state=iter_seed)
         except (TypeError, ValueError):
             pass
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        res = mar_with_residuals(y_test, y_pred)
+        model.fit(X_train_s, y_train_s)
+        y_pred = model.predict(X_test_s)
+        res = mar_with_residuals(y_test_s, y_pred)
         mar_by_model[name] = res.mar
         abs_residuals_by_model[name] = res.abs_residuals
-        metrics_by_model[name] = compute_all_regression_metrics(y_test, y_pred)
+        metrics_by_model[name] = compute_all_regression_metrics(y_test_s, y_pred)
 
     return IterationResult(
         mar_by_model=mar_by_model,
@@ -118,6 +127,75 @@ def run_experiment(
         models.update(get_ensemble_models(experiment_config.random_state))
     if not models:
         raise ValueError("At least one of include_baselines or include_ensemble must be True")
+
+    # PSO hyperparameter optimization (if enabled)
+    optimized_hyperparams: dict[str, dict[str, Any]] = {}
+    if experiment_config.use_pso and include_ensemble:
+        # Use a single train/test split for PSO optimization
+        rng = np.random.default_rng(experiment_config.random_state)
+        perm = rng.permutation(n)
+        X_shuf, y_shuf = X[perm], y[perm]
+        X_train_pso, X_test_pso, y_train_pso, y_test_pso = train_test_split(
+            X_shuf, y_shuf,
+            train_ratio=experiment_config.train_ratio,
+            random_state=experiment_config.random_state,
+        )
+        X_train_pso_s, y_train_pso_s, _, _ = scale_fit_train_transform_test(
+            X_train_pso, y_train_pso, X_test_pso, y_test_pso
+        )
+
+        pso_config = PSOConfig(
+            n_particles=experiment_config.pso_n_particles,
+            n_iterations=experiment_config.pso_n_iterations,
+            cv_folds=experiment_config.pso_cv_folds,
+            random_state=experiment_config.random_state,
+            verbose=True,
+        )
+        optimizer = PSOHyperparameterOptimizer(pso_config)
+
+        # Get builder functions for ensemble models
+        from ensemble_see.models import (
+            build_bagging_la,
+            build_bagging_lr,
+            build_bagging_ri,
+            build_bagging_rr,
+            build_stacking_la,
+            build_stacking_lr,
+            build_stacking_ri,
+            build_stacking_rr,
+        )
+        builder_map = {
+            "B-LR": build_bagging_lr,
+            "B-RR": build_bagging_rr,
+            "B-RI": build_bagging_ri,
+            "B-LA": build_bagging_la,
+            "ST-LR": build_stacking_lr,
+            "ST-RR": build_stacking_rr,
+            "ST-RI": build_stacking_ri,
+            "ST-LA": build_stacking_la,
+        }
+        ensemble_models_builders = {
+            name: builder_map[name]
+            for name in models.keys()
+            if name in builder_map
+        }
+
+        if ensemble_models_builders:
+            pso_results = optimizer.optimize_multiple_models(
+                ensemble_models_builders, X_train_pso_s, y_train_pso_s
+            )
+            optimized_hyperparams = {
+                name: params for name, (params, _) in pso_results.items()
+            }
+            # Update models with optimized hyperparameters
+            from ensemble_see.pso_optimizer import _get_hyperparameter_configs
+            configs = _get_hyperparameter_configs()
+            for name, hyperparams in optimized_hyperparams.items():
+                if name in models and hyperparams and name in configs:
+                    # Create new model with optimized hyperparameters
+                    base_model = models[name]
+                    optimized_model = clone(base_model)
+                    models[name] = configs[name].param_setter(optimized_model, hyperparams)
 
     n_iters = experiment_config.effective_iterations()
     rng = np.random.default_rng(experiment_config.random_state)

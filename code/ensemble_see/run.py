@@ -66,6 +66,29 @@ def main() -> int:
         action="store_true",
         help="Skip ensemble models (Bagging/Stacking)",
     )
+    parser.add_argument(
+        "--use-pso",
+        action="store_true",
+        help="Use PSO for hyperparameter optimization",
+    )
+    parser.add_argument(
+        "--pso-particles",
+        type=int,
+        default=30,
+        help="Number of PSO particles (default: 30)",
+    )
+    parser.add_argument(
+        "--pso-iterations",
+        type=int,
+        default=50,
+        help="Number of PSO iterations (default: 50)",
+    )
+    parser.add_argument(
+        "--pso-cv-folds",
+        type=int,
+        default=5,
+        help="Number of CV folds for PSO (default: 5)",
+    )
     args = parser.parse_args()
 
     if args.no_baselines and args.no_ensemble:
@@ -82,6 +105,10 @@ def main() -> int:
         train_ratio=args.train_ratio,
         random_state=args.seed,
         max_iterations=args.max_iter,
+        use_pso=args.use_pso,
+        pso_n_particles=args.pso_particles,
+        pso_n_iterations=args.pso_iterations,
+        pso_cv_folds=args.pso_cv_folds,
     )
 
     for key in args.datasets:

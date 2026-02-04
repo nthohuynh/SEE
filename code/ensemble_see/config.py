@@ -14,6 +14,7 @@ from typing import Sequence
 # Default root for datasets (relative to this file)
 _DATASETS_ROOT = Path(__file__).resolve().parents[2] / "datasets"
 _CLEANED = _DATASETS_ROOT / "cleanedData"
+_RAW = _DATASETS_ROOT
 
 
 @dataclass(frozen=True)
@@ -31,7 +32,7 @@ class DatasetConfig:
             object.__setattr__(self, "path", Path(self.path))
 
 
-# Predefined dataset configs for cleaned CSVs
+# Predefined dataset configs (CSV from cleanedData, ARFF from datasets/)
 DATASET_REGISTRY: dict[str, DatasetConfig] = {
     "albrecht": DatasetConfig(
         name="albrecht",
@@ -44,6 +45,18 @@ DATASET_REGISTRY: dict[str, DatasetConfig] = {
         path=_CLEANED / "kemerer_processed.csv",
         target_column="EffortMM",
         drop_columns=("ID",),
+    ),
+    "china": DatasetConfig(
+        name="china",
+        path=_RAW / "china.arff",
+        target_column="Effort",
+        drop_columns=("ID",),
+    ),
+    "maxwell": DatasetConfig(
+        name="maxwell",
+        path=_RAW / "maxwell.arff",
+        target_column="Effort",
+        drop_columns=(),
     ),
 }
 
@@ -61,6 +74,16 @@ class ExperimentConfig:
     # Optional overrides for quick tests
     max_iterations: int | None = None
     """If set, cap n_iterations (e.g. 5 for smoke test)."""
+
+    # PSO hyperparameter optimization
+    use_pso: bool = False
+    """Whether to use PSO for hyperparameter optimization."""
+    pso_n_particles: int = 30
+    """Number of particles in PSO swarm."""
+    pso_n_iterations: int = 50
+    """Number of PSO iterations."""
+    pso_cv_folds: int = 5
+    """Number of CV folds for PSO fitness evaluation."""
 
     def effective_iterations(self) -> int:
         if self.max_iterations is not None:
