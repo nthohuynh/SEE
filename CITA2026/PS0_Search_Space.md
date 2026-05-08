@@ -1,1 +1,37 @@
 
+### Paper title: A Metaheuristic-Optimized Ensemble Learning Approach for Software Effort Estimation
+### Conference: CITA2026
+
+### Table 1. Hyperparameter search space for ensemble models optimized by PSO
+
+| Model | Hyperparameter | Type | Range | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **B-LR** | n_estimators | Integer | [10, 200] | Base models in bagging |
+| | max_samples | Real | [0.5, 1.0] | Fraction of training samples per bootstrap |
+| | max_features | Real | [0.5, 1.0] | Fraction of features per base model |
+| **B-RR** | n_estimators, max_samples, max_features | - | - | As in B-LR |
+| | α | Real | [10⁻⁵, 10⁻²] | L2 regularization (log-scale search) |
+| | ε | Real | [1.0, 2.0] | Huber loss transition parameter |
+| **B-RI** | n_estimators, max_samples, max_features | - | - | As in B-LR |
+| | α | Real | [10⁻¹, 10²] | L2 regularization (log-scale search) |
+| **B-LA** | n_estimators, max_samples, max_features | - | - | As in B-LR |
+| | α | Real | [10⁻⁵, 1.0] | L1 regularization (log-scale search) |
+| **ST-LR**| cv | Integer | [3, 10] | Folds for internal stacking CV |
+| | α_robust | Real | [10⁻⁵, 10⁻²] | Huber base: reg. (log-scale) |
+| | ε_robust | Real | [1.0, 2.0] | Huber base: transition |
+| | α_ridge | Real | [10⁻¹, 10²] | Ridge base: reg. (log-scale) |
+| | α_lasso | Real | [10⁻⁵, 1.0] | Lasso base: reg. (log-scale) |
+| **ST-RR**| cv | Integer | [3, 10] | Folds for internal stacking CV |
+| | α_ridge_base | Real | [10⁻¹, 10²] | Ridge base: reg. (log-scale) |
+| | α_lasso_base | Real | [10⁻⁵, 1.0] | Lasso base: reg. (log-scale) |
+| | α_robust_final| Real | [10⁻⁵, 10⁻²] | Huber meta: reg. (log-scale) |
+| | ε_robust_final| Real | [1.0, 2.0] | Huber meta: transition |
+| **ST-RI**| cv | Integer | [3, 10] | Folds for internal stacking CV |
+| | α_robust | Real | [10⁻⁵, 10⁻²] | Huber base: reg. (log-scale) |
+| | ε_robust | Real | [1.0, 2.0] | Huber base: transition |
+| | α_lasso | Real | [10⁻⁵, 1.0] | Lasso base: reg. (log-scale) |
+| | α_ridge_final | Real | [10⁻¹, 10²] | Ridge meta: reg. (log-scale) |
+| **ST-LA**| cv | Integer | [3, 10] | Folds for internal stacking CV |
+| | α_lasso_base | Real | [10⁻⁵, 1.0] | Lasso base: reg. (log-scale) |
+| | α_ridge_base | Real | [10⁻¹, 10²] | Ridge base: reg. (log-scale) |
+| | α_lasso_final | Real | [10⁻⁵, 1.0] | Lasso meta: reg. (log-scale) |
